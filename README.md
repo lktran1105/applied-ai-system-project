@@ -12,7 +12,19 @@ It wrote the code, ran away, and now the game is unplayable.
 ## 🛠️ Setup
 
 1. Install dependencies: `pip install -r requirements.txt`
-2. Run the broken app: `python -m streamlit run app.py`
+2. (Optional, enables AI Agent mode) Set your Anthropic API key: `export ANTHROPIC_API_KEY=your-key-here`
+3. Run the app: `python -m streamlit run app.py`
+
+## 🤖 AI Agent Mode
+
+Switch **Mode** to `AI Agent` in the sidebar to let an LLM play the game instead of typing guesses yourself.
+
+- Each click of **"Agent: Make Next Guess"** calls Claude (`ai_agent.py`) with the current search bounds and guess history; the model returns a guess plus a one-sentence reasoning, shown live and logged in the **Agent Reasoning Log** expander.
+- The agent's guess goes through the exact same `check_guess` / `update_score` path as a manual guess (`process_guess` in `app.py`) — it is a real alternate way to play, not a side script.
+- **Guardrails**: any model guess that is out of range, already tried, or the wrong type is rejected and replaced with a deterministic binary-search midpoint, as is any API error, timeout, or malformed response — the game can never crash or stall because of the model. If the agent's search bounds ever cross (a sign the hint logic produced two contradictory hints), the game flags it and ends the round rather than continuing silently.
+- **Logging**: every guess, fallback trigger, and API error is written to `logs/agent.log` in addition to the on-screen log.
+- If `ANTHROPIC_API_KEY` isn't set, AI Agent mode is disabled with a message instead of failing on first click.
+- `tests/test_ai_agent.py` covers the guardrail logic (invalid/repeated guesses, API failures, full-game convergence) using a mocked client — no API key or network access needed to run the test suite.
 
 ## 🕵️‍♂️ Your Mission
 
