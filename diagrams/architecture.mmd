@@ -1,0 +1,81 @@
+%% Game Glitch Investigator — system architecture
+%% Renders with any Mermaid viewer (GitHub, VS Code Mermaid extension, mermaid.live)
+
+flowchart TD
+    Player["🧑 Player (Human)"]
+
+    subgraph UI["app.py — Streamlit UI"]
+        Mode{"Mode selector"}
+        ManualInput["Manual guess input"]
+        AgentButton["'Agent: Make Next Guess' button"]
+        ProcessGuess["process_guess()\nshared scoring / win-loss path"]
+        DebugPanel["Developer Debug Info panel"]
+        AgentLog["Agent Reasoning Log (UI expander)"]
+    end
+
+    subgraph AGENT["ai_agent.py — Agent + Guardrail"]
+        SafeGuess["safe_agent_guess()\nguardrail wrapper"]
+        Propose["propose_guess()\nbuilds prompt, calls model"]
+        Validate{"Valid guess?\nin range, not repeated,\nno API error"}
+        Fallback["_midpoint_fallback()\ndeterministic binary search"]
+    end
+
+    Claude["☁️ Claude API\n(claude-haiku-4-5)\nmake_guess tool call"]
+
+    subgraph LOGIC["logic_utils.py — Game Logic (Evaluator)"]
+        CheckGuess["check_guess()\nWin / Too High / Too Low"]
+        UpdateScore["update_score()"]
+    end
+
+    LogFile["📄 logs/agent.log\n(every guess, fallback, API error)"]
+
+    subgraph TEST["tests/test_ai_agent.py — Automated Testing"]
+        PytestSuite["pytest suite\nmocked Anthropic client\nno network needed"]
+    end
+
+    %% --- Manual play path ---
+    Player -->|"types a number"| ManualInput
+    ManualInput --> Mode --> ProcessGuess
+
+    %% --- Agent play path ---
+    Player -->|"clicks button"| AgentButton --> Mode
+    Mode --> SafeGuess
+    SafeGuess --> Propose --> Claude
+    Claude -->|"guess + reasoning"| Propose --> Validate
+    Validate -->|"yes"| ProcessGuess
+    Validate -->|"no / exception"| Fallback --> ProcessGuess
+
+    %% --- Shared evaluation ---
+    ProcessGuess --> CheckGuess --> UpdateScore
+    UpdateScore --> ProcessGuess
+
+    %% --- Outputs back to human ---
+    ProcessGuess -->|"hint, score, win/loss"| Player
+    ProcessGuess --> AgentLog --> Player
+    ProcessGuess --> DebugPanel --> Player
+
+    %% --- Human-in-the-loop review ---
+    Player -.->|"inspects reasoning\nand secret to verify correctness"| AgentLog
+    Player -.->|"inspects state to catch bugs"| DebugPanel
+
+    %% --- Logging ---
+    SafeGuess -.-> LogFile
+    Fallback -.-> LogFile
+
+    %% --- Offline verification (dev workflow, not runtime) ---
+    PytestSuite -.->|"exercises with fake client"| SafeGuess
+    PytestSuite -.->|"exercises"| Fallback
+    Developer["🧑‍💻 Developer"] -->|"runs `pytest`"| PytestSuite
+    PytestSuite -->|"pass/fail"| Developer
+
+    classDef human fill:#e0f2fe,stroke:#0284c7,color:#000;
+    classDef agent fill:#fef3c7,stroke:#d97706,color:#000;
+    classDef logic fill:#dcfce7,stroke:#16a34a,color:#000;
+    classDef test fill:#fae8ff,stroke:#a21caf,color:#000;
+    classDef external fill:#f1f5f9,stroke:#64748b,color:#000;
+
+    class Player,Developer human;
+    class SafeGuess,Propose,Validate,Fallback agent;
+    class CheckGuess,UpdateScore logic;
+    class PytestSuite test;
+    class Claude,LogFile external;
