@@ -77,6 +77,8 @@ Output: guess=50, source=llm
         reasoning: "Starting at the midpoint of 1-100 to halve the search space."
 ```
 
+https://github.com/user-attachments/assets/12226247-694d-4f0a-a32f-4b200ddf04cb
+
 ## Design Decisions
 
 - **Guardrail-first, not prompt-first.** Rather than trying to prompt Claude into never misbehaving, `safe_agent_guess()` treats every model response as untrusted input and validates it in code (range check, repeat check, type check) before it can touch game state. Trade-off: this adds a layer of code the model output has to pass through, but it means a hallucinated or malformed response degrades gracefully to a deterministic fallback instead of crashing the game or corrupting `session_state`.
