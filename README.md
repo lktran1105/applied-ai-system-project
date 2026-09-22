@@ -59,7 +59,9 @@ Input:  safe_agent_guess(low=1, high=100, history=[], client=None)
 Output: guess=50, source=fallback
         reasoning: "No API client configured — used binary search midpoint."
 ```
-![Fallback case](/Users/linhtran/Desktop/CodePath-AI-Eng/applied-ai-system-final/demo/fallback.png)
+<p align="center">
+  <img src="demo/fallback.png" alt="Fallback case" width="600">
+</p>
 
 **3. AI Agent mode, model returns an invalid guess** — Claude proposes `999`, which is outside the `1–100` search range; the guardrail rejects it and substitutes the deterministic midpoint instead of passing the bad value through to the game:
 ```
@@ -74,7 +76,6 @@ Input:  model proposes guess=50 for bounds 1-100
 Output: guess=50, source=llm
         reasoning: "Starting at the midpoint of 1-100 to halve the search space."
 ```
-[![Watch the video](https://drive.google.com/file/d/1WnCScPiPyNrKoxzsrFfK0VBzDo4_ddTB/view?usp=sharing)]
 
 ## Design Decisions
 
