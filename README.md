@@ -1,10 +1,10 @@
 # 🎮 Game Glitch Investigator + AI Agent
 
-## Original Project (Modules 1–3)
+## Original Project (Modules 1)
 
-This project builds on **Game Glitch Investigator: The Impossible Guesser**, a Streamlit number-guessing game from Modules 1–3. It shipped intentionally broken — hints pointed the wrong direction, "New Game" didn't reset state, and the attempt counter was off by one — and the original goal was to debug and refactor it into a working game: fix the hint logic, fix session-state handling, and move game logic out of `app.py` into a testable `logic_utils.py` module.
+This project builds on **Game Glitch Investigator: The Impossible Guesser**, a Streamlit number-guessing game from Modules 1. It shipped intentionally broken: hints pointed the wrong direction, "New Game" didn't reset state, and the attempt counter was off by one, and the original goal was to debug and refactor it into a working game: fix the hint logic, fix session-state handling, and move game logic out of `app.py` into a testable `logic_utils.py` module.
 
-## Title and Summary
+## Project Summary
 
 **Game Glitch Investigator + AI Agent** is the fixed number-guessing game extended with an optional AI Agent mode: instead of a human typing guesses, Claude proposes each guess (with a one-sentence rationale), wrapped in a guardrail that never lets a bad or missing model response affect the game. It matters because it demonstrates the core pattern for shipping an LLM feature safely — the model is a *suggestion source*, not something the app blindly trusts, so the game keeps working even if the API is down, the key is missing, or the model hallucinates an invalid move.
 
@@ -14,7 +14,7 @@ The full system diagram is in [diagrams/architecture.mmd](diagrams/architecture.
 
 At a high level:
 
-- **`app.py` (UI)** — Streamlit front end. Lets the player pick Manual or AI Agent mode, and routes every guess — manual or agent — through one shared `process_guess()` path so both modes play by identical rules.
+- **`app.py` (UI)** — Streamlit front end. Lets the player pick Manual or AI Agent mode, and routes every guess (manual or agent) through one shared `process_guess()` path so both modes play by identical rules.
 - **`ai_agent.py` (Agent + Guardrail)** — `propose_guess()` calls Claude with the current search bounds and guess history via a `make_guess` tool call. `safe_agent_guess()` wraps it: any out-of-range guess, repeat guess, malformed response, or API exception is caught and replaced with a deterministic binary-search midpoint (`_midpoint_fallback()`). Callers only ever use `safe_agent_guess`.
 - **`logic_utils.py` (Evaluator)** — `check_guess()` and `update_score()` are the single source of truth for win/too-high/too-low and scoring, shared by both play modes.
 - **Human checkpoints** — the "Agent Reasoning Log" and "Developer Debug Info" panels in the UI let a player inspect every agent guess, its reasoning, and its source (`llm` vs `fallback`) against the actual secret. `logs/agent.log` records the same events for offline review.
@@ -59,6 +59,7 @@ Input:  safe_agent_guess(low=1, high=100, history=[], client=None)
 Output: guess=50, source=fallback
         reasoning: "No API client configured — used binary search midpoint."
 ```
+![Fallback case](/Users/linhtran/Desktop/CodePath-AI-Eng/applied-ai-system-final/demo/fallback.png)
 
 **3. AI Agent mode, model returns an invalid guess** — Claude proposes `999`, which is outside the `1–100` search range; the guardrail rejects it and substitutes the deterministic midpoint instead of passing the bad value through to the game:
 ```
@@ -73,11 +74,12 @@ Input:  model proposes guess=50 for bounds 1-100
 Output: guess=50, source=llm
         reasoning: "Starting at the midpoint of 1-100 to halve the search space."
 ```
+[![Watch the video](https://drive.google.com/file/d/1WnCScPiPyNrKoxzsrFfK0VBzDo4_ddTB/view?usp=sharing)]
 
 ## Design Decisions
 
 - **Guardrail-first, not prompt-first.** Rather than trying to prompt Claude into never misbehaving, `safe_agent_guess()` treats every model response as untrusted input and validates it in code (range check, repeat check, type check) before it can touch game state. Trade-off: this adds a layer of code the model output has to pass through, but it means a hallucinated or malformed response degrades gracefully to a deterministic fallback instead of crashing the game or corrupting `session_state`.
-- **Deterministic fallback (binary search), not "retry the model."** On any failure, the fallback is a plain binary-search midpoint — no extra API calls, no added latency, and it's provably correct (see `test_fallback_only_agent_converges`). Trade-off: it's less "intelligent" than asking the model again, but it's simpler, free, and can't fail the same way twice.
+- **Deterministic fallback (binary search), not "retry the model."** On any failure, the fallback is a plain binary-search midpoint — no extra API calls, no added latency, and it's probably correct (see `test_fallback_only_agent_converges`). Trade-off: it's less "intelligent" than asking the model again, but it's simpler, free, and can't fail the same way twice.
 - **One shared `process_guess()` path for both modes.** Manual and AI Agent guesses run through identical scoring/win-loss logic so the agent is a genuine alternate way to play, not a parallel code path that could drift out of sync with manual mode.
 - **Logic split out of `app.py`.** `check_guess`/`update_score` live in `logic_utils.py` specifically so they're unit-testable without spinning up Streamlit. Trade-off: an extra module/import to maintain, in exchange for a test suite that runs in milliseconds with no UI dependency.
 - **Fail open on missing credentials, not fail closed.** If `ANTHROPIC_API_KEY` isn't set, AI Agent mode is simply disabled with a message and the app falls back to Manual mode, rather than erroring out on first click.
